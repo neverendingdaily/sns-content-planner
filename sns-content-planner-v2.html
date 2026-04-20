@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SNS Content Planner v2</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans JP',sans-serif;background:#f7f6f4;color:#1c1917;min-height:100vh}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes chatSlide{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.spin{animation:spin 1s linear infinite}
+.fadeUp{animation:fadeUp .38s cubic-bezier(0.22,1,0.36,1) both}
+.fadeIn{animation:fadeIn .3s ease both}
+.chatSlide{animation:chatSlide .32s cubic-bezier(0.22,1,0.36,1) both}
+.pulse{animation:pulse 1.4s ease-in-out infinite}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:#f5f5f4}
+::-webkit-scrollbar-thumb{background:#d6d3d1;border-radius:4px}
+textarea,input,button,select{font-family:'Noto Sans JP',sans-serif}
+button:focus{outline:none}
+input:focus,textarea:focus{outline:2px solid #6366f1;outline-offset:1px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+
+/* ============================================================
+   ICONS
+   ============================================================ */
+const Ic = ({ size=16, className="", children, style={} }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth="2"
+    strokeLinecap="round" strokeLinejoin="round"
+    className={className}
+    style={{ display:"inline-block", flexShrink:0, ...style }}
+  >{children}</svg>
+);
+
+const Icons = {
+  Upload:        p => <Ic {...p}><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></Ic>,
+  Sparkles:      p => <Ic {...p}><path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5z"/><path d="M5 3l.8 2.2L8 6 5.8 6.8 5 9l-.8-2.2L2 6l2.2-.8z"/><path d="M19 13l.5 1.5 1.5.5-1.5.5L19 17l-.5-1.5L17 15l1.5-.5z"/></Ic>,
+  Check:         p => <Ic {...p}><polyline points="20 6 9 17 4 12"/></Ic>,
+  ChevronRight:  p => <Ic {...p}><polyline points="9 18 15 12 9 6"/></Ic>,
+  Refresh:       p => <Ic {...p}><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></Ic>,
+  Calendar:      p => <Ic {...p}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></Ic>,
+  AlertCircle:   p => <Ic {...p}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></Ic>,
+  Loader:        p => <Ic className="spin" {...p}><path d="M21 12a9 9 0 1 1-6.22-8.56"/></Ic>,
+  X:             p => <Ic {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></Ic>,
+  ArrowRight:    p => <Ic {...p}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></Ic>,
+  Download:      p => <Ic {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></Ic>,
+  MessageCircle: p => <Ic {...p}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></Ic>,
+  Target:        p => <Ic {...p}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></Ic>,
+  Layers:        p => <Ic {...p}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></Ic>,
+  Grid:          p => <Ic {...p}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></Ic>,
+  List:          p => <Ic {...p}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></Ic>,
+  FileText:      p => <Ic {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></Ic>,
+  Users:         p => <Ic {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></Ic>,
+  Zap:           p => <Ic {...p}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></Ic>,
+  Lock:          p => <Ic {...p}><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></Ic>,
+  Image:         p => <Ic {...p}><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></Ic>,
+  BookOpen:      p => <Ic {...p}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></Ic>,
+  Star:          p => <Ic {...p}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></Ic>,
+};
+
+/* ============================================================
+   PROMPT TEMPLATES （AI実装時に差し替える）
+   ============================================================
+
+  ◆ STEP 0 — 全体像分析＆資料リクエスト
+  const step0Prompt = (overview, kgi, tone) => `
+  あなたはSNSコンテンツ戦略の専門家です。
+  以下の情報を分析し、深掘りすべきトピックと追加資料リクエストを提示してください。
+
+  全体像データ（雑誌テーマ・ビジュアル情報）: ${overview}
+  今月の目的（KGI/KPI）: ${kgi}
+  トンマナ・ブランド方針: ${tone}
+
+  以下の順で回答してください（チャット吹き出し形式）:
+  1. 全体像から読み取れる主要テーマと読者ニーズの仮説
+  2. 深掘りすべき具体的なトピック2〜3点
+  3. 各トピックへの追加資料リクエスト（ページ番号・内容を具体的に）
+  `;
+
+  ◆ STEP 1 — コアコンセプト＆週次テーマ確定
+  const step1Prompt = (supplements, episode, prevAnalysis) => `
+  あなたはSNSコンテンツ戦略の専門家です。
+  追加資料と発信者の個人エピソードを統合し、1ヶ月のコンセプトと週次テーマをJSONのみで出力してください。
+
+  STEP 0の分析: ${prevAnalysis}
+  追加資料の内容: ${supplements}
+  発信者の個人エピソード: ${episode}
+
+  JSONスキーマ:
+  {
+    "mainConcept": "メインコンセプト（15〜25字）",
+    "emotionalHook": "ターゲットの核心的な悩み（30〜50字）",
+    "subConcept": "補足方針（40〜60字）",
+    "weeks": [
+      { "week": 1, "theme": "週テーマ（20〜30字）", "description": "詳細（40〜60字）" },
+      { "week": 2 ... },
+      { "week": 3 ... },
+      { "week": 4 ... }
+    ]
+  }
+  `;
+
+  ◆ STEP 2 — ネタ帳（投稿アイデア大量生成）
+  const step2Prompt = (concept, weeks) => `
+  確定したメインコンセプト「${concept}」と以下の週次テーマを元に、
+  投稿アイデアを25〜30件JSONで出力してください（前置き不要）。
+
+  週次テーマ:
+  ${weeks.map(w => `第${w.week}週: ${w.theme}`).join('\n')}
+
+  JSONスキーマ（配列）:
+  [{ "id": 1, "category": "教育・解説|共感・ストーリー|CTA・誘導|エンタメ・企画",
+     "title": "投稿タイトル（30〜40字）",
+     "platform": "Threads|X|Instagram",
+     "type": "テキスト|カルーセル|リール|画像|スレッド|アンケート",
+     "week": 1 }]
+  `;
+
+  ◆ STEP 3 — カレンダーマッピング
+  const step3Prompt = (approvedTopics, postsPerWeek, platforms, month, year) => `
+  承認された投稿アイデアリストを消費しながら、
+  運用リソースに合わせて現実的な${year}年${month}月の30日間カレンダーに割り当ててください。
+
+  承認済みアイデア: ${JSON.stringify(approvedTopics)}
+  週間投稿回数: ${postsPerWeek}回/週
+  使用PF: ${platforms.join('、')}
+
+  投稿しない日は{"date": N}のみ。全日分を必ず出力すること。
+  `;
+
+   ============================================================ */
+
+/* ============================================================
+   MOCK DATA（汎用サンプル）
+   ============================================================ */
+const MOCK_CHAT = [
+  { id: 1, delay: 900,  text: "提供いただいた概要を分析しました。「実践ノウハウ」と「読者の行動変容」の交点に強い需要が見えます。今月のKPIとも親和性が高く、効果的な発信軸が組めそうです。" },
+  { id: 2, delay: 2500, text: "📌 追加資料リクエスト①：「具体的な実践手順」が記載されているページ（特に図解・事例・ステップ解説が含まれる部分）のスキャン画像またはPDFをSTEP 1の入力欄に追加してください。" },
+  { id: 3, delay: 4300, text: "📌 追加資料リクエスト②：読者の声・実績データ（ビフォーアフター・体験談・アンケート結果など）が含まれているページも非常に重要です。共感コンテンツの説得力が格段に上がります。" },
+  { id: 4, delay: 6000, text: "✅ 準備ができたら、STEP 1に進んでください。追加資料と発信者ご自身の経験・エピソードを入力することで、オリジナリティのあるコンセプトを確定させます。" },
+];
+
+const MOCK_CONCEPT = {
+  mainConcept: "「知っている」から「できる」に変える実践発信",
+  emotionalHook: "情報はあふれているのに、なぜか自分の行動が変わらないという停滞感",
+  subConcept: "具体的な行動提案と共感を組み合わせ、読者が「今日からやってみよう」と思える発信で差別化する1ヶ月",
+  weeks: [
+    { week: 1, theme: "現状把握：「できない」本当の理由を言語化する", description: "読者の潜在的な思い込みに切り込み、問題の根本を明確にする導入週", color: "#6366f1" },
+    { week: 2, theme: "インプット整理：正しい情報の選び方と捨て方", description: "情報過多の時代に本当に必要なものを選ぶ具体的なフレームワークを提供する", color: "#0ea5e9" },
+    { week: 3, theme: "実践：最初の一歩のハードルを下げる最小アクション", description: "完璧主義を手放し、小さな成功体験を積み上げる行動デザインを解説する", color: "#10b981" },
+    { week: 4, theme: "定着：仕組み化で継続を自動化する", description: "意志力に頼らない仕組み構築とCTAで来月への橋渡しを完結させる", color: "#f59e0b" },
+  ],
+};
+
+const MOCK_TOPICS = [
+  { id:  1, category: "教育・解説",    title: "多くの人が誤解している〇〇の基本3原則",             platform: "Threads",   type: "テキスト",   week: 1 },
+  { id:  2, category: "教育・解説",    title: "プロが必ずやっている事前準備チェックリスト",          platform: "Instagram", type: "カルーセル", week: 1 },
+  { id:  3, category: "教育・解説",    title: "今すぐ改善できる見直しポイント5選",                  platform: "X",         type: "スレッド",   week: 2 },
+  { id:  4, category: "教育・解説",    title: "初心者向け：始める前に絶対知っておくべきこと",       platform: "Threads",   type: "テキスト",   week: 2 },
+  { id:  5, category: "教育・解説",    title: "成果が出る人と出ない人の決定的な違い",               platform: "X",         type: "テキスト",   week: 3 },
+  { id:  6, category: "教育・解説",    title: "図解：正しいプロセスを5ステップで可視化",            platform: "Instagram", type: "カルーセル", week: 3 },
+  { id:  7, category: "教育・解説",    title: "知らないと損する業界の裏ワザ3選",                   platform: "Threads",   type: "テキスト",   week: 4 },
+  { id:  8, category: "教育・解説",    title: "よくある失敗パターンとその対処法まとめ",             platform: "X",         type: "スレッド",   week: 4 },
+  { id:  9, category: "共感・ストーリー", title: "正直に言います。最初の3ヶ月は全然うまくいきませんでした", platform: "Threads", type: "テキスト",  week: 1 },
+  { id: 10, category: "共感・ストーリー", title: "「どうせ自分には無理」と思っていた頃の話",        platform: "X",         type: "テキスト",   week: 1 },
+  { id: 11, category: "共感・ストーリー", title: "読者さんから一番多い質問に本音で答えます",        platform: "Threads",   type: "テキスト",   week: 2 },
+  { id: 12, category: "共感・ストーリー", title: "やっと変われた転機は、ある一言でした",            platform: "Instagram", type: "縦長画像",   week: 2 },
+  { id: 13, category: "共感・ストーリー", title: "同じ悩みを持つ方へ、今一番伝えたいこと",          platform: "Threads",   type: "テキスト",   week: 3 },
+  { id: 14, category: "共感・ストーリー", title: "「もう諦めようかな」と思ったとき読んでほしい話",  platform: "X",         type: "テキスト",   week: 3 },
+  { id: 15, category: "共感・ストーリー", title: "1年前の自分に今伝えたいたった1つのこと",          platform: "Threads",   type: "テキスト",   week: 4 },
+  { id: 16, category: "CTA・誘導",    title: "【無料公開】普段は教えていないノウハウを一部見せます", platform: "X",        type: "テキスト",   week: 1 },
+  { id: 17, category: "CTA・誘導",    title: "登録者限定コンテンツの中身を初公開します",           platform: "Instagram", type: "カルーセル", week: 2 },
+  { id: 18, category: "CTA・誘導",    title: "なぜ無料でここまで公開するのか、理由を話します",     platform: "X",         type: "テキスト",   week: 3 },
+  { id: 19, category: "CTA・誘導",    title: "月末締め切り。今だけの限定オファーについて",         platform: "Threads",   type: "テキスト",   week: 4 },
+  { id: 20, category: "エンタメ・企画", title: "診断：あなたの〇〇タイプは？（アンケート）",       platform: "Threads",   type: "アンケート", week: 1 },
+  { id: 21, category: "エンタメ・企画", title: "保存必須！〇〇まとめ完全版",                       platform: "Instagram", type: "カルーセル", week: 2 },
+  { id: 22, category: "エンタメ・企画", title: "これを知ったとき衝撃でした〇〇の意外な真実",       platform: "X",         type: "テキスト",   week: 3 },
+  { id: 23, category: "エンタメ・企画", title: "リアルな1週間の過ごし方を大公開",                  platform: "Instagram", type: "リール",     week: 1 },
+  { id: 24, category: "エンタメ・企画", title: "今週のベスト投稿ランキング（読者参加型）",          platform: "X",         type: "アンケート", week: 4 },
+  { id: 25, category: "エンタメ・企画", title: "来月のテーマ予告＆フォロワーへの感謝メッセージ",   platform: "Threads",   type: "テキスト",   week: 4 },
+];
+
+const buildMockCalendar = (selectedIds, postsPerWeek, month, year) => {
+  const selected = MOCK_TOPICS.filter(t => selectedIds.includes(t.id));
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const totalPosts = Math.min(selected.length, Math.round(postsPerWeek * 4.33));
+  const postTopics = selected.slice(0, totalPosts);
+
+  const usedDays = new Set();
+  const postDays = {};
+  postTopics.forEach((topic, i) => {
+    let day = Math.round((daysInMonth / (totalPosts + 1)) * (i + 1));
+    day = Math.min(Math.max(day, 1), daysInMonth);
+    while (usedDays.has(day) && day < daysInMonth) day++;
+    if (day <= daysInMonth && !usedDays.has(day)) {
+      usedDays.add(day);
+      postDays[day] = topic;
+    }
+  });
+
+  return Array.from({ length: daysInMonth }, (_, i) => {
+    const d = i + 1;
+    if (postDays[d]) {
+      const t = postDays[d];
+      return {
+        date: d, platform: t.platform, title: t.title,
+        postType: t.category.split("・")[0],
+        type: t.type, pillar: t.category,
+      };
+    }
+    return { date: d };
+  });
+};
+
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+const C = {
+  primary:      "#6366f1",
+  primaryDark:  "#4f46e5",
+  primaryLight: "#eef2ff",
+  success:      "#10b981",
+  successLight: "#ecfdf5",
+  border:       "#e7e5e4",
+  bg:           "#f7f6f4",
+  card:         "#ffffff",
+  text:         "#1c1917",
+  muted:        "#78716c",
+  subtle:       "#a8a29e",
+};
+
+const cardStyle = {
+  background: C.card,
+  border: `1px solid ${C.border}`,
+  borderRadius: 16,
+  padding: "20px",
+};
+
+const labelStyle = {
+  fontSize: 11,
+  fontWeight: 700,
+  color: "#57534e",
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+};
+
+const textareaSt = {
+  width: "100%", border: `1px solid ${C.border}`, borderRadius: 10,
+  padding: "10px 14px", fontSize: 13, color: C.text, background: "#fafaf9",
+  resize: "none", lineHeight: 1.75,
+};
+
+const inputSt = {
+  width: "100%", border: `1px solid ${C.border}`, borderRadius: 10,
+  padding: "10px 14px", fontSize: 13, color: C.text, background: "#fafaf9",
+};
+
+/* ============================================================
+   UTILITY COMPONENTS
+   ============================================================ */
+const PBtn = ({ onClick, disabled, loading, children, style={} }) => (
+  <button onClick={onClick} disabled={disabled || loading} style={{
+    display:"flex", alignItems:"center", justifyContent:"center", gap:8,
+    padding:"12px 24px",
+    background: (disabled || loading) ? "#d6d3d1" : `linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`,
+    color:"#fff", border:"none", borderRadius:12, fontWeight:700, fontSize:14,
+    cursor: (disabled || loading) ? "not-allowed" : "pointer",
+    boxShadow: (disabled || loading) ? "none" : "0 4px 16px rgba(99,102,241,0.28)",
+    transition:"all 0.2s", ...style
+  }}>
+    {loading ? <><Icons.Loader size={15} /><span>処理中…</span></> : children}
+  </button>
+);
+
+const SBtn = ({ onClick, children, style={} }) => (
+  <button onClick={onClick} style={{
+    display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+    padding:"10px 18px", background:"#f5f5f4", color:"#44403c",
+    border:`1px solid ${C.border}`, borderRadius:12, fontWeight:600, fontSize:13,
+    cursor:"pointer", ...style
+  }}>{children}</button>
+);
+
+const Card = ({ children, style={} }) => (
+  <div style={{ ...cardStyle, ...style }}>{children}</div>
+);
+
+const SectionLabel = ({ children, icon, style={} }) => (
+  <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12, ...style }}>
+    {icon && <span style={{ color:C.primary }}>{icon}</span>}
+    <span style={labelStyle}>{children}</span>
+  </div>
+);
+
+const PLT_COLORS = {
+  "Threads":   { bg:"#f0f0f0", fg:"#111111" },
+  "X":         { bg:"#e7f3fe", fg:"#1d6fb4" },
+  "Instagram": { bg:"#fce7f3", fg:"#9d174d" },
+};
+
+const PlatformBadge = ({ platform }) => {
+  const c = PLT_COLORS[platform] || { bg:"#f5f5f4", fg:C.muted };
+  return (
+    <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:99, background:c.bg, color:c.fg, whiteSpace:"nowrap" }}>
+      {platform}
+    </span>
+  );
+};
+
+const CAT_COLORS = {
+  "教育・解説":     { bg:"#eef2ff", fg:"#4f46e5", border:"#c7d2fe" },
+  "共感・ストーリー": { bg:"#fce7f3", fg:"#9d174d", border:"#fbcfe8" },
+  "CTA・誘導":     { bg:"#fffbeb", fg:"#92400e", border:"#fde68a" },
+  "エンタメ・企画": { bg:"#f0fdf4", fg:"#166534", border:"#bbf7d0" },
+  "教育":   { bg:"#eef2ff", fg:"#4f46e5", border:"#c7d2fe" },
+  "共感":   { bg:"#fce7f3", fg:"#9d174d", border:"#fbcfe8" },
+  "CTA":    { bg:"#fffbeb", fg:"#92400e", border:"#fde68a" },
+  "エンタメ": { bg:"#f0fdf4", fg:"#166534", border:"#bbf7d0" },
+};
+
+const CatBadge = ({ cat }) => {
+  const c = CAT_COLORS[cat] || { bg:"#f5f5f4", fg:C.muted };
+  return (
+    <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:99, background:c.bg, color:c.fg, whiteSpace:"nowrap" }}>
+      {cat}
+    </span>
+  );
+};
+
+const EmptyState = ({ icon, title, sub, style={} }) => (
+  <Card style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:300, gap:14, padding:"48px 24px", ...style }}>
+    <div style={{ width:58, height:58, background:"#f5f5f4", borderRadius:16, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      {icon}
+    </div>
+    <p style={{ fontSize:14, color:C.muted, textAlign:"center", lineHeight:1.8, fontWeight:500 }}>{title}</p>
+    {sub && <p style={{ fontSize:12, color:C.subtle, textAlign:"center" }}>{sub}</p>}
+  </Card>
+);
+
+const LoadingSpinner = ({ text, style={} }) => (
+  <Card style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:300, gap:16, ...style }}>
+    <div style={{ position:"relative", width:58, height:58 }}>
+      <div className="spin" style={{ width:58, height:58, borderRadius:"50%", border:`4px solid ${C.primaryLight}`, borderTopColor:C.primary }} />
+      <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)" }}>
+        <Icons.Sparkles size={18} style={{ color:C.primary }} />
+      </div>
+    </div>
+    <p style={{ fontSize:13, color:C.muted, textAlign:"center", lineHeight:1.8 }}>{text}</p>
+  </Card>
+);
+
+/* ============================================================
+   PROGRESS BAR
+   ============================================================ */
+const STEP_DEFS = [
+  { label:"全体像の把握",   sub:"資料リクエスト" },
+  { label:"軸の確定",      sub:"コンセプト決定" },
+  { label:"ネタ帳の生成",   sub:"トピック選択" },
+  { label:"カレンダー作成", sub:"30日計画" },
+];
+
+function ProgressBar({ current }) {
+  return (
+    <div style={{ background:C.card, borderBottom:`1px solid ${C.border}`, padding:"20px 40px" }}>
+      <div style={{ maxWidth:640, margin:"0 auto", display:"flex", alignItems:"flex-start" }}>
+        {STEP_DEFS.map((s, i) => (
+          <React.Fragment key={i}>
+            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, minWidth:0 }}>
+              <div style={{
+                width:38, height:38, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center",
+                background: i < current ? C.success : i === current ? C.primary : "#e7e5e4",
+                boxShadow: i === current ? `0 0 0 5px ${C.primaryLight}` : "none",
+                transition:"all 0.35s ease",
+              }}>
+                {i < current
+                  ? <Icons.Check size={16} style={{ color:"#fff" }} />
+                  : <span style={{ color: i === current ? "#fff" : C.subtle, fontWeight:800, fontSize:13 }}>{i}</span>
+                }
+              </div>
+              <div style={{ textAlign:"center" }}>
+                <p style={{ fontSize:11, fontWeight: i === current ? 700 : 500, color: i === current ? C.primary : i < current ? C.success : C.subtle, whiteSpace:"nowrap" }}>
+                  {s.label}
+                </p>
+                <p style={{ fontSize:10, color:C.subtle, whiteSpace:"nowrap" }}>{s.sub}</p>
+              </div>
+            </div>
+            {i < STEP_DEFS.length - 1 && (
+              <div style={{ flex:1, height:2, marginTop:18, marginLeft:6, marginRight:6, background: i < current ? C.success : C.border, transition:"background 0.35s ease" }} />
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   STEP 0: 全体像の把握と資料リクエスト
+   ============================================================ */
+function Step0({ onNext }) {
+  const [imgs, setImgs]     = useState([]);
+  const [kgi, setKgi]       = useState("");
+  const [tone, setTone]     = useState("");
+  const [loading, setLoading] = useState(false);
+  const [chat, setChat]     = useState([]);
+  const [done, setDone]     = useState(false);
+  const fileRef             = useRef();
+  const chatEndRef          = useRef();
+  const timersRef           = useRef([]);
+
+  const addFiles = files => {
+    Array.from(files).slice(0, 3 - imgs.length).forEach(f => {
+      const r = new FileReader();
+      r.onload = e => setImgs(prev => [...prev, { src:e.target.result, name:f.name }].slice(0, 3));
+      r.readAsDataURL(f);
+    });
+  };
+
+  // Cleanup timers on unmount
+  useEffect(() => () => timersRef.current.forEach(clearTimeout), []);
+
+  useEffect(() => {
+    if (chat.length > 0) chatEndRef.current?.scrollIntoView({ behavior:"smooth" });
+  }, [chat]);
+
+  const analyze = () => {
+    setLoading(true);
+    setChat([]);
+    setDone(false);
+
+    /*
+      AI実装時:
+      callClaude(step0Prompt(imgs.map(i=>i.name).join(", "), kgi, tone))
+        .then(msgs => msgs.forEach((msg, i) => { ... }))
+    */
+
+    MOCK_CHAT.forEach(msg => {
+      const t = setTimeout(() => {
+        setChat(prev => [...prev, msg]);
+        if (msg.id === MOCK_CHAT.length) {
+          setLoading(false);
+          setDone(true);
+        }
+      }, msg.delay);
+      timersRef.current.push(t);
+    });
+  };
+
+  const ready = kgi.trim().length > 3;
+
+  return (
+    <div className="fadeUp" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24, alignItems:"start" }}>
+      {/* LEFT — Inputs */}
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <Card>
+          <SectionLabel icon={<Icons.Image size={13} />}>全体像の資料（雑誌の表紙・目次など）</SectionLabel>
+          <div
+            onDrop={e => { e.preventDefault(); addFiles(e.dataTransfer.files); }}
+            onDragOver={e => e.preventDefault()}
+            onClick={() => fileRef.current?.click()}
+            style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:"20px 16px", textAlign:"center", cursor:"pointer", background:"#fafaf9" }}>
+            <Icons.Upload size={22} style={{ color:C.subtle, margin:"0 auto 8px", display:"block" }} />
+            <p style={{ fontSize:13, color:C.muted }}>ドラッグ＆ドロップ、またはクリック</p>
+            <p style={{ fontSize:11, color:C.subtle, marginTop:3 }}>PNG / JPG 最大3枚（任意）</p>
+            <input ref={fileRef} type="file" accept="image/*" multiple style={{ display:"none" }} onChange={e => addFiles(e.target.files)} />
+          </div>
+          {imgs.length > 0 && (
+            <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+              {imgs.map((img, i) => (
+                <div key={i} style={{ position:"relative" }}>
+                  <img src={img.src} alt="" style={{ width:58, height:58, objectFit:"cover", borderRadius:8, border:`1px solid ${C.border}` }} />
+                  <button onClick={() => setImgs(prev => prev.filter((_,j)=>j!==i))}
+                    style={{ position:"absolute", top:-5, right:-5, width:18, height:18, background:"#ef4444", color:"#fff", border:"none", borderRadius:"50%", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    <Icons.X size={9} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <SectionLabel icon={<Icons.Target size={13} />}>今月の目的（KGI / KPI）</SectionLabel>
+          <textarea value={kgi} onChange={e => setKgi(e.target.value)} rows={3}
+            placeholder="例：フォロワー+200人、メルマガ登録CVR 3%、保存率 5%以上"
+            style={textareaSt} />
+        </Card>
+
+        <Card>
+          <SectionLabel icon={<Icons.Layers size={13} />}>トンマナ・ブランド方針</SectionLabel>
+          <textarea value={tone} onChange={e => setTone(e.target.value)} rows={3}
+            placeholder="例：親しみやすく専門的。煽り・比較訴求はNG。読者に寄り添うナチュラルな発信。"
+            style={textareaSt} />
+        </Card>
+
+        <PBtn onClick={analyze} loading={loading} disabled={!ready || loading}>
+          <Icons.Sparkles size={15} />
+          AIに全体像を分析させる
+        </PBtn>
+        {!ready && (
+          <p style={{ textAlign:"center", fontSize:11, color:C.subtle, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+            <Icons.AlertCircle size={11} />KGI/KPIを入力してください
+          </p>
+        )}
+      </div>
+
+      {/* RIGHT — AI Chat */}
+      <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+        <Card style={{ minHeight:360, display:"flex", flexDirection:"column" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${C.border}` }}>
+            <div style={{ width:34, height:34, background:C.primaryLight, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Icons.MessageCircle size={16} style={{ color:C.primary }} />
+            </div>
+            <div>
+              <p style={{ fontWeight:700, fontSize:13, color:C.text }}>AIコンシェルジュ</p>
+              <p style={{ fontSize:11, color:C.subtle }}>分析結果 ＆ 追加資料リクエスト</p>
+            </div>
+            {loading && (
+              <div style={{ marginLeft:"auto", display:"flex", gap:4, alignItems:"center" }}>
+                {[0,1,2].map(i => (
+                  <div key={i} className="pulse" style={{ width:6, height:6, background:C.primary, borderRadius:"50%", animationDelay:`${i*0.18}s` }} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {chat.length === 0 && !loading && (
+            <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12 }}>
+              <div style={{ width:52, height:52, background:C.primaryLight, borderRadius:14, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <Icons.MessageCircle size={24} style={{ color:C.primary }} />
+              </div>
+              <p style={{ fontSize:13, color:C.subtle, textAlign:"center", lineHeight:1.8 }}>
+                左側の情報を入力してボタンを押すと<br />AIが全体像を分析し、<br />追加資料のリクエストを送ります
+              </p>
+            </div>
+          )}
+
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            {chat.map((msg, i) => (
+              <div key={msg.id} className="chatSlide" style={{ animationDelay:`${i*0.04}s`, display:"flex", gap:10, alignItems:"flex-start" }}>
+                <div style={{ width:28, height:28, background:C.primaryLight, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}>
+                  <Icons.Sparkles size={12} style={{ color:C.primary }} />
+                </div>
+                <div style={{ background:C.primaryLight, border:`1px solid #c7d2fe`, borderRadius:"4px 14px 14px 14px", padding:"10px 14px", fontSize:13, color:C.text, lineHeight:1.75, flex:1 }}>
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+        </Card>
+
+        {done && (
+          <PBtn onClick={onNext} style={{ background:`linear-gradient(135deg, ${C.success}, #059669)`, boxShadow:"0 4px 14px rgba(16,185,129,0.28)" }}>
+            STEP 1へ進む — 追加資料の入力
+            <Icons.ArrowRight size={15} />
+          </PBtn>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   STEP 1: 今月の軸の確定
+   ============================================================ */
+function Step1({ onNext, onBack }) {
+  const [files, setFiles]     = useState([]);
+  const [episode, setEpisode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [concept, setConcept] = useState(null);
+  const fileRef               = useRef();
+
+  const addFiles = fs => {
+    Array.from(fs).slice(0, 5 - files.length).forEach(f => {
+      const r = new FileReader();
+      r.onload = e => setFiles(prev => [...prev, { src:e.target.result, name:f.name }].slice(0, 5));
+      r.readAsDataURL(f);
+    });
+  };
+
+  const generate = () => {
+    setLoading(true);
+    /*
+      AI実装時:
+      const sys = `追加資料と個人エピソードを統合し、1ヶ月のコンセプトと週次テーマをJSONで出力せよ`;
+      callClaude(step1Prompt(files, episode, prevAnalysis), sys).then(setConcept).finally(() => setLoading(false));
+    */
+    setTimeout(() => { setConcept(MOCK_CONCEPT); setLoading(false); }, 2800);
+  };
+
+  const WEEK_COLORS = ["#6366f1","#0ea5e9","#10b981","#f59e0b"];
+
+  return (
+    <div className="fadeUp" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24, alignItems:"start" }}>
+      {/* LEFT */}
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <Card>
+          <SectionLabel icon={<Icons.FileText size={13} />}>詳細な参考資料（PDF / 画像）</SectionLabel>
+          <p style={{ fontSize:11, color:C.muted, marginBottom:10, lineHeight:1.65 }}>
+            STEP 0でAIがリクエストした資料を追加してください
+          </p>
+          <div
+            onDrop={e => { e.preventDefault(); addFiles(e.dataTransfer.files); }}
+            onDragOver={e => e.preventDefault()}
+            onClick={() => fileRef.current?.click()}
+            style={{ border:`2px dashed ${C.border}`, borderRadius:12, padding:"16px", textAlign:"center", cursor:"pointer", background:"#fafaf9" }}>
+            <Icons.Upload size={20} style={{ color:C.subtle, margin:"0 auto 6px", display:"block" }} />
+            <p style={{ fontSize:13, color:C.muted }}>クリックまたはドラッグ（最大5件）</p>
+            <p style={{ fontSize:11, color:C.subtle, marginTop:3 }}>PNG / JPG / PDF</p>
+            <input ref={fileRef} type="file" accept="image/*,application/pdf" multiple style={{ display:"none" }} onChange={e => addFiles(e.target.files)} />
+          </div>
+          {files.length > 0 && (
+            <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:10 }}>
+              {files.map((f, i) => (
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 12px", background:C.primaryLight, borderRadius:8 }}>
+                  <Icons.FileText size={12} style={{ color:C.primary, flexShrink:0 }} />
+                  <span style={{ fontSize:12, color:C.text, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.name}</span>
+                  <button onClick={() => setFiles(prev => prev.filter((_,j)=>j!==i))}
+                    style={{ background:"none", border:"none", cursor:"pointer", color:C.subtle, padding:0, display:"flex" }}>
+                    <Icons.X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <SectionLabel icon={<Icons.Users size={13} />}>発信者の個人的な経験・エピソード</SectionLabel>
+          <p style={{ fontSize:11, color:C.muted, marginBottom:10, lineHeight:1.65 }}>
+            実体験・失敗談・気づきを書いてください。コンテンツの独自性と説得力が格段に上がります。
+          </p>
+          <textarea value={episode} onChange={e => setEpisode(e.target.value)} rows={6}
+            placeholder="例：半年間毎日継続したのに結果が出ず、やめようと思った時期がありました。その後、〇〇を一つ変えただけで3週間で成果が出始めました..."
+            style={textareaSt} />
+          {episode.length > 0 && <p style={{ fontSize:11, color:C.subtle, textAlign:"right", marginTop:3 }}>{episode.length}文字</p>}
+        </Card>
+
+        <div style={{ display:"flex", gap:10 }}>
+          <SBtn onClick={onBack} style={{ flex:1 }}>← 戻る</SBtn>
+          <PBtn onClick={generate} loading={loading} style={{ flex:2 }}>
+            <Icons.Sparkles size={15} />
+            今月の軸を確定する
+          </PBtn>
+        </div>
+      </div>
+
+      {/* RIGHT — Concept Result */}
+      <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        {!concept && !loading && (
+          <EmptyState
+            icon={<Icons.Layers size={26} style={{ color:C.subtle }} />}
+            title={<>STEP 0の指示に従い追加資料と<br />エピソードを入力後、<br />ボタンを押してください</>}
+          />
+        )}
+        {loading && (
+          <LoadingSpinner text={"資料とエピソードを統合中…\n今月の軸を確定しています"} />
+        )}
+        {concept && (
+          <div className="fadeUp" style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            {/* Main Concept Card */}
+            <div style={{ background:`linear-gradient(135deg, #eef2ff, #e0e7ff)`, border:`1px solid #c7d2fe`, borderRadius:16, padding:20 }}>
+              <p style={{ fontSize:11, fontWeight:700, color:C.primary, marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>今月のメインコンセプト</p>
+              <p style={{ fontWeight:900, fontSize:16, color:C.text, lineHeight:1.45, marginBottom:10, fontFamily:"'Sora', 'Noto Sans JP', sans-serif" }}>
+                {concept.mainConcept}
+              </p>
+              <div style={{ padding:"10px 14px", background:"rgba(255,255,255,0.65)", borderRadius:10, marginBottom:10 }}>
+                <p style={{ fontSize:11, fontWeight:700, color:C.primary, marginBottom:3 }}>感情的フック</p>
+                <p style={{ fontSize:12, color:"#3730a3", lineHeight:1.65 }}>{concept.emotionalHook}</p>
+              </div>
+              <p style={{ fontSize:12, color:"#57534e", lineHeight:1.65 }}>{concept.subConcept}</p>
+            </div>
+
+            {/* Weekly Themes */}
+            <div>
+              <p style={{ ...labelStyle, marginBottom:10 }}>週次テーマ（W1〜W4）</p>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {concept.weeks.map((w) => (
+                  <div key={w.week} style={{ ...cardStyle, padding:"14px 16px", display:"flex", gap:14, alignItems:"flex-start", borderLeft:`4px solid ${w.color}` }}>
+                    <div style={{ width:30, height:30, background:w.color + "1a", borderRadius:9, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                      <span style={{ fontSize:11, fontWeight:800, color:w.color }}>W{w.week}</span>
+                    </div>
+                    <div>
+                      <p style={{ fontWeight:700, fontSize:13, color:C.text, marginBottom:3, lineHeight:1.4 }}>{w.theme}</p>
+                      <p style={{ fontSize:11, color:C.muted, lineHeight:1.65 }}>{w.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <PBtn onClick={() => onNext(concept)} style={{ background:`linear-gradient(135deg, ${C.success}, #059669)`, boxShadow:"0 4px 14px rgba(16,185,129,0.28)" }}>
+              このコンセプトで確定 → STEP 2へ
+              <Icons.ArrowRight size={15} />
+            </PBtn>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   STEP 2: ネタ帳（トピックツリー）の生成
+   ============================================================ */
+function Step2({ concept, onNext, onBack }) {
+  const [topics, setTopics]   = useState(null);
+  const [selected, setSelected] = useState(new Set());
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("all");
+
+  const CATS = ["all", "教育・解説", "共感・ストーリー", "CTA・誘導", "エンタメ・企画"];
+
+  const generate = () => {
+    setLoading(true);
+    /*
+      AI実装時:
+      callClaude(step2Prompt(concept.mainConcept, concept.weeks))
+        .then(data => { setTopics(data); setSelected(new Set(data.map(t=>t.id))); })
+        .finally(() => setLoading(false));
+    */
+    setTimeout(() => {
+      setTopics(MOCK_TOPICS);
+      setSelected(new Set(MOCK_TOPICS.map(t => t.id)));
+      setLoading(false);
+    }, 2200);
+  };
+
+  const toggle = id => setSelected(prev => {
+    const n = new Set(prev);
+    n.has(id) ? n.delete(id) : n.add(id);
+    return n;
+  });
+
+  const toggleAll = () => {
+    if (topics && selected.size === topics.length) setSelected(new Set());
+    else setSelected(new Set((topics || []).map(t => t.id)));
+  };
+
+  const filtered = (topics || []).filter(t => activeTab === "all" || t.category === activeTab);
+
+  return (
+    <div className="fadeUp" style={{ display:"flex", flexDirection:"column", gap:18 }}>
+      {/* Concept Lock Bar */}
+      <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px", background:C.primaryLight, border:`1px solid #c7d2fe`, borderRadius:12 }}>
+        <Icons.Lock size={14} style={{ color:C.primary, flexShrink:0 }} />
+        <div style={{ flex:1, minWidth:0 }}>
+          <p style={{ fontSize:10, fontWeight:700, color:C.primary, textTransform:"uppercase", letterSpacing:"0.05em" }}>確定コンセプト（制約として固定）</p>
+          <p style={{ fontSize:13, fontWeight:700, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+            {concept?.mainConcept || "今月のコアコンセプト"}
+          </p>
+        </div>
+        <PBtn onClick={generate} loading={loading} disabled={loading}
+          style={{ padding:"8px 16px", fontSize:12, flexShrink:0 }}>
+          <Icons.Zap size={13} />
+          {!loading && (topics ? "再生成" : "ネタ帳を生成")}
+        </PBtn>
+      </div>
+
+      {!topics && !loading && (
+        <EmptyState
+          icon={<Icons.List size={28} style={{ color:C.subtle }} />}
+          title={<>「ネタ帳を生成」ボタンを押すと<br />AIが投稿アイデアを25〜30件生成します</>}
+          sub="生成後、不要なアイデアのチェックを外して取捨選択できます"
+        />
+      )}
+
+      {loading && <LoadingSpinner text={"確定テーマを元に投稿アイデアを\n大量生成中…"} />}
+
+      {topics && (
+        <>
+          {/* Tabs + Actions */}
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", gap:6, flex:1, flexWrap:"wrap" }}>
+              {CATS.map(cat => {
+                const count = cat === "all" ? topics.length : topics.filter(t => t.category === cat).length;
+                const selCount = cat === "all" ? selected.size : topics.filter(t => t.category === cat && selected.has(t.id)).length;
+                return (
+                  <button key={cat} onClick={() => setActiveTab(cat)} style={{
+                    padding:"6px 14px", borderRadius:99, border:"none", cursor:"pointer", fontSize:12, fontWeight:600,
+                    background: activeTab === cat ? C.primary : "#f5f5f4",
+                    color: activeTab === cat ? "#fff" : C.muted,
+                    transition:"all 0.15s",
+                  }}>
+                    {cat === "all" ? "すべて" : cat.split("・")[0]} {selCount}/{count}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontSize:12, fontWeight:700, color:C.primary }}>{selected.size} / {topics.length} 選択中</span>
+              <SBtn onClick={toggleAll} style={{ padding:"5px 12px", fontSize:11 }}>
+                {selected.size === topics.length ? "全解除" : "全選択"}
+              </SBtn>
+            </div>
+          </div>
+
+          {/* Topic List */}
+          <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+            {filtered.map(t => {
+              const isSel = selected.has(t.id);
+              return (
+                <div key={t.id} onClick={() => toggle(t.id)} style={{
+                  display:"flex", alignItems:"center", gap:12, padding:"12px 16px",
+                  background: isSel ? "#fff" : "#fafaf9",
+                  border:`1px solid ${isSel ? "#c7d2fe" : C.border}`,
+                  borderRadius:12, cursor:"pointer",
+                  opacity: isSel ? 1 : 0.5,
+                  transition:"all 0.15s",
+                }}>
+                  <div style={{
+                    width:20, height:20, borderRadius:6, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center",
+                    background: isSel ? C.primary : "#f5f5f4",
+                    border:`1px solid ${isSel ? C.primary : C.border}`,
+                    transition:"all 0.15s",
+                  }}>
+                    {isSel && <Icons.Check size={11} style={{ color:"#fff" }} />}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ fontSize:13, fontWeight:600, color:C.text, marginBottom:4, lineHeight:1.4 }}>{t.title}</p>
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+                      <CatBadge cat={t.category} />
+                      <PlatformBadge platform={t.platform} />
+                      <span style={{ fontSize:10, color:C.subtle, fontWeight:500 }}>{t.type}  ·  第{t.week}週</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Footer Actions */}
+          <div style={{ display:"flex", gap:10 }}>
+            <SBtn onClick={onBack} style={{ flex:1 }}>← 戻る</SBtn>
+            <PBtn onClick={() => onNext([...selected])} disabled={selected.size === 0} style={{ flex:3 }}>
+              <Icons.Check size={15} />
+              {selected.size}件を承認してSTEP 3へ
+              <Icons.ArrowRight size={15} />
+            </PBtn>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   STEP 3: カレンダーマッピング
+   ============================================================ */
+function Step3({ selectedIds, concept, onBack }) {
+  const today    = new Date();
+  const month    = today.getMonth() + 1;
+  const year     = today.getFullYear();
+  const [postsPerWeek, setPostsPerWeek] = useState(5);
+  const [platforms, setPlatforms]       = useState(["Threads", "X", "Instagram"]);
+  const [calData, setCalData]           = useState(null);
+  const [loading, setLoading]           = useState(false);
+  const [view, setView]                 = useState("grid");
+
+  const togglePlatform = p => setPlatforms(prev =>
+    prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]
+  );
+
+  const generate = () => {
+    setLoading(true);
+    /*
+      AI実装時:
+      const sys = `承認済みアイデアリストを消費しながら、運用リソースに合わせてカレンダーに割り当てる。制約: ${concept.mainConcept}`;
+      callClaude(step3Prompt(selected, postsPerWeek, platforms, month, year), sys)
+        .then(setCalData).finally(() => setLoading(false));
+    */
+    setTimeout(() => {
+      setCalData(buildMockCalendar(selectedIds, postsPerWeek, month, year));
+      setLoading(false);
+    }, 3000);
+  };
+
+  const exportJSON = () => {
+    const blob = new Blob([JSON.stringify({ concept, calendar:calData }, null, 2)], { type:"application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `sns-plan-${year}-${String(month).padStart(2,"0")}.json`;
+    a.click();
+  };
+
+  const exportCSV = () => {
+    if (!calData) return;
+    const rows = calData.filter(d => d.title).map(d => [d.date, d.platform, d.title, d.postType, d.type, d.pillar]);
+    const csv = [["日付","PF","タイトル","種別","形式","柱"], ...rows]
+      .map(r => r.map(v => `"${(v||"").toString().replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type:"text/csv;charset=utf-8;" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `sns-plan-${year}-${String(month).padStart(2,"0")}.csv`;
+    a.click();
+  };
+
+  const firstDay    = new Date(year, month - 1, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const DAY_LABELS  = ["日","月","火","水","木","金","土"];
+
+  const postCount = calData ? calData.filter(d => d.title).length : 0;
+
+  return (
+    <div className="fadeUp" style={{ display:"flex", flexDirection:"column", gap:20 }}>
+      {/* Resource Config — shown when no calendar yet */}
+      {!calData && (
+        <Card>
+          <p style={{ fontWeight:800, fontSize:15, color:C.text, marginBottom:18, fontFamily:"'Sora', sans-serif" }}>運用リソースの設定</p>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:22 }}>
+            <div>
+              <SectionLabel icon={<Icons.Calendar size={13} />}>週間投稿回数</SectionLabel>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                {[3, 4, 5, 7, 10, 14].map(n => (
+                  <button key={n} onClick={() => setPostsPerWeek(n)} style={{
+                    padding:"8px 16px", borderRadius:10, fontSize:13, cursor:"pointer",
+                    border:`1px solid ${postsPerWeek === n ? C.primary : C.border}`,
+                    background: postsPerWeek === n ? C.primaryLight : "#fff",
+                    color: postsPerWeek === n ? C.primary : C.muted,
+                    fontWeight: postsPerWeek === n ? 700 : 500,
+                    transition:"all 0.15s",
+                  }}>週{n}回</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <SectionLabel icon={<Icons.Users size={13} />}>使用プラットフォーム</SectionLabel>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                {["Threads", "X", "Instagram"].map(p => (
+                  <button key={p} onClick={() => togglePlatform(p)} style={{
+                    padding:"8px 16px", borderRadius:10, fontSize:12, cursor:"pointer",
+                    border:`1px solid ${platforms.includes(p) ? C.primary : C.border}`,
+                    background: platforms.includes(p) ? C.primaryLight : "#fff",
+                    color: platforms.includes(p) ? C.primary : C.muted,
+                    fontWeight: platforms.includes(p) ? 700 : 500,
+                    transition:"all 0.15s",
+                  }}>{p}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Concept summary */}
+          <div style={{ marginTop:18, padding:"12px 16px", background:"#f8f7f6", borderRadius:10, display:"flex", alignItems:"center", gap:10 }}>
+            <Icons.Lock size={13} style={{ color:C.primary, flexShrink:0 }} />
+            <p style={{ fontSize:12, color:C.muted }}>
+              承認アイデア: <strong style={{ color:C.text }}>{selectedIds.length}件</strong>　　
+              コンセプト: <strong style={{ color:C.text }}>{concept?.mainConcept}</strong>
+            </p>
+          </div>
+
+          <div style={{ display:"flex", gap:10, marginTop:18 }}>
+            <SBtn onClick={onBack} style={{ flex:1 }}>← 戻る</SBtn>
+            <PBtn onClick={generate} loading={loading} disabled={platforms.length === 0} style={{ flex:3 }}>
+              <Icons.Calendar size={15} />
+              {!loading && `承認${selectedIds.length}件で30日カレンダーを生成`}
+            </PBtn>
+          </div>
+        </Card>
+      )}
+
+      {/* Calendar Result */}
+      {calData && (
+        <div className="fadeUp">
+          {/* Header Controls */}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+            <div>
+              <p style={{ fontWeight:800, fontSize:16, color:C.text, fontFamily:"'Sora', sans-serif" }}>
+                {year}年{month}月 投稿カレンダー
+              </p>
+              <p style={{ fontSize:12, color:C.muted, marginTop:3 }}>
+                {postCount}件の投稿 ／ 週{postsPerWeek}回ペース ／ {platforms.join("・")}
+              </p>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <SBtn onClick={() => setView(v => v === "grid" ? "list" : "grid")} style={{ padding:"7px 13px", fontSize:12 }}>
+                {view === "grid"
+                  ? <><Icons.List size={13} /> リスト表示</>
+                  : <><Icons.Grid size={13} /> グリッド表示</>}
+              </SBtn>
+              <SBtn onClick={() => { setCalData(null); }} style={{ padding:"7px 13px", fontSize:12 }}>
+                <Icons.Refresh size={13} /> 再設定
+              </SBtn>
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div style={{ display:"flex", gap:12, marginBottom:14, flexWrap:"wrap" }}>
+            {[["教育","#4f46e5","#eef2ff"],["共感","#9d174d","#fce7f3"],["CTA","#92400e","#fffbeb"],["エンタメ","#166534","#f0fdf4"]].map(([label, fg, bg]) => (
+              <div key={label} style={{ display:"flex", alignItems:"center", gap:5 }}>
+                <div style={{ width:10, height:10, borderRadius:3, background:bg, border:`1px solid ${fg}20` }} />
+                <span style={{ fontSize:11, color:C.muted }}>{label}</span>
+              </div>
+            ))}
+            <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+              <div style={{ width:10, height:10, borderRadius:3, background:"#fafaf9", border:`1px solid ${C.border}` }} />
+              <span style={{ fontSize:11, color:C.subtle }}>投稿なし</span>
+            </div>
+          </div>
+
+          {/* Grid View */}
+          {view === "grid" && (
+            <Card style={{ padding:16 }}>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(7, 1fr)", gap:4, marginBottom:8 }}>
+                {DAY_LABELS.map(d => (
+                  <div key={d} style={{ textAlign:"center", fontSize:11, fontWeight:700, color:d==="日"?"#ef4444":d==="土"?"#3b82f6":C.subtle, padding:"4px 0" }}>{d}</div>
+                ))}
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(7, 1fr)", gap:4 }}>
+                {Array.from({ length:firstDay }, (_,i) => <div key={`e${i}`} />)}
+                {calData.map(day => {
+                  const hasPost = !!day.title;
+                  const c = CAT_COLORS[day.postType] || {};
+                  return (
+                    <div key={day.date} title={hasPost ? `${day.date}日 ${day.platform} - ${day.title}` : `${day.date}日 (投稿なし)`}
+                      style={{
+                        minHeight:78, borderRadius:8, padding:"6px 7px",
+                        background: hasPost ? c.bg : "#fafaf9",
+                        border:`1px solid ${hasPost ? c.border : C.border}`,
+                        cursor: hasPost ? "default" : "default",
+                      }}>
+                      <p style={{ fontSize:10, fontWeight:700, color: hasPost ? c.fg : C.subtle, marginBottom:3 }}>{day.date}</p>
+                      {hasPost && (
+                        <>
+                          <p style={{ fontSize:9, color:c.fg, fontWeight:700, lineHeight:1.3, marginBottom:2 }}>{day.platform}</p>
+                          <p style={{ fontSize:9, color:C.text, lineHeight:1.4, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:3, WebkitBoxOrient:"vertical" }}>{day.title}</p>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
+          {/* List View */}
+          {view === "list" && (
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {calData.filter(d => d.title).map(day => {
+                const c = CAT_COLORS[day.postType] || {};
+                return (
+                  <Card key={day.date} style={{ padding:"12px 16px", display:"flex", alignItems:"center", gap:14, borderLeft:`4px solid ${c.border || C.border}` }}>
+                    <div style={{ width:38, textAlign:"center", flexShrink:0 }}>
+                      <p style={{ fontSize:9, color:C.subtle, fontWeight:700 }}>{month}月</p>
+                      <p style={{ fontSize:22, fontWeight:900, color:C.text, lineHeight:1, fontFamily:"'Sora', sans-serif" }}>{day.date}</p>
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <p style={{ fontWeight:700, fontSize:13, color:C.text, marginBottom:5, lineHeight:1.4 }}>{day.title}</p>
+                      <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+                        <PlatformBadge platform={day.platform} />
+                        <CatBadge cat={day.pillar} />
+                        <span style={{ fontSize:10, color:C.subtle }}>{day.type}</span>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Export Footer */}
+          <div style={{ marginTop:16, padding:"18px 22px", background:"linear-gradient(135deg, #1e293b, #0f172a)", borderRadius:16, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
+            <div>
+              <p style={{ fontWeight:700, fontSize:14, color:"#f8fafc", marginBottom:3 }}>✅ 30日間の計画が完成しました</p>
+              <p style={{ fontSize:12, color:"#64748b", lineHeight:1.65 }}>
+                BufferやCanva Content Plannerに取り込んで予約投稿を設定してください。
+              </p>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={exportJSON} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 14px", background:"#334155", color:"#e2e8f0", border:"none", borderRadius:9, cursor:"pointer", fontSize:12, fontWeight:600 }}>
+                <Icons.Download size={13} /> JSON
+              </button>
+              <button onClick={exportCSV} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 14px", background:"#334155", color:"#e2e8f0", border:"none", borderRadius:9, cursor:"pointer", fontSize:12, fontWeight:600 }}>
+                <Icons.Download size={13} /> CSV
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   APP ROOT
+   ============================================================ */
+function App() {
+  const [step, setStep]           = useState(0);
+  const [concept, setConcept]     = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+
+  const STEP_TITLES = [
+    "全体像の把握と資料リクエスト",
+    "今月の軸の確定",
+    "ネタ帳（トピックツリー）の生成",
+    "カレンダーマッピング",
+  ];
+
+  const STEP_DESCS = [
+    "雑誌の表紙・目次などを読み込み、AIが深掘りすべきトピックと追加資料をリクエストします",
+    "追加資料と発信者の個人エピソードを統合し、今月のコアコンセプトと週次テーマを確定します",
+    "確定したコンセプトを元に投稿アイデアを大量生成。不要なものを除いて承認します",
+    "承認済みアイデアと運用リソースを掛け合わせ、30日分の投稿カレンダーを自動生成します",
+  ];
+
+  return (
+    <div style={{ minHeight:"100vh", background:C.bg }}>
+      {/* Header */}
+      <header style={{ background:C.card, borderBottom:`1px solid ${C.border}`, padding:"14px 24px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ width:36, height:36, background:`linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <Icons.Calendar size={18} style={{ color:"#fff" }} />
+          </div>
+          <div>
+            <p style={{ fontWeight:800, fontSize:15, color:C.text, fontFamily:"'Sora', sans-serif" }}>SNS Content Planner</p>
+            <p style={{ fontSize:10, color:C.subtle }}>v2 — 4ステップ計画ウィザード</p>
+          </div>
+        </div>
+        <p style={{ fontSize:11, color:C.subtle }}>Powered by Claude API</p>
+      </header>
+
+      {/* Progress Bar */}
+      <ProgressBar current={step} />
+
+      {/* Step Header */}
+      <div style={{ maxWidth:960, margin:"0 auto", padding:"28px 24px 0" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:6 }}>
+          <div style={{ width:30, height:30, background:`linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+            <span style={{ color:"#fff", fontWeight:800, fontSize:13, fontFamily:"'Sora', sans-serif" }}>{step}</span>
+          </div>
+          <h2 style={{ fontWeight:800, fontSize:18, color:C.text, fontFamily:"'Sora', sans-serif" }}>
+            {STEP_TITLES[step]}
+          </h2>
+        </div>
+        <p style={{ fontSize:13, color:C.muted, paddingLeft:42, marginBottom:20, lineHeight:1.65 }}>
+          {STEP_DESCS[step]}
+        </p>
+      </div>
+
+      {/* Main Content */}
+      <main style={{ maxWidth:960, margin:"0 auto", padding:"0 24px 80px" }}>
+        {step === 0 && (
+          <Step0 onNext={() => setStep(1)} />
+        )}
+        {step === 1 && (
+          <Step1
+            onNext={c => { setConcept(c); setStep(2); }}
+            onBack={() => setStep(0)}
+          />
+        )}
+        {step === 2 && (
+          <Step2
+            concept={concept}
+            onNext={ids => { setSelectedIds(ids); setStep(3); }}
+            onBack={() => setStep(1)}
+          />
+        )}
+        {step === 3 && (
+          <Step3
+            selectedIds={selectedIds}
+            concept={concept}
+            onBack={() => setStep(2)}
+          />
+        )}
+      </main>
+
+      <footer style={{ borderTop:`1px solid ${C.border}`, padding:"20px 24px", textAlign:"center" }}>
+        <p style={{ fontSize:11, color:"#d6d3d1" }}>
+          SNS Content Planner v2 — 4ステップ計画ウィザード ｜ Powered by Claude API ｜ テーマブレ防止設計
+        </p>
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
